@@ -1,0 +1,40 @@
+{
+  "cms": "astro-content-collections",
+  "cmsVersion": "5.2.1",
+  "transport": {
+    "type": "git-commit",
+    "branch": "main"
+  },
+  "auth": {
+    "type": "none"
+  },
+  "contentTypes": [
+    {
+      "name": "blog",
+      "path": "src/content/blog",
+      "format": "mdx",
+      "slug": { "source": "title", "strategy": "kebab-case" },
+      "fields": [
+        { "name": "title", "type": "string", "required": true },
+        { "name": "description", "type": "text", "required": true },
+        { "name": "pubDate", "type": "date", "required": true },
+        { "name": "updatedDate", "type": "date", "required": false },
+        { "name": "heroImage", "type": "image", "required": false },
+        { "name": "tags", "type": "array", "required": false, "items": "string" },
+        { "name": "draft", "type": "boolean", "required": false, "default": true }
+      ]
+    },
+    {
+      "name": "authors",
+      "path": "src/content/authors",
+      "format": "md",
+      "slug": { "source": "name", "strategy": "kebab-case" },
+      "fields": [
+        { "name": "name", "type": "string", "required": true },
+        { "name": "bio", "type": "text", "required": false },
+        { "name": "avatar", "type": "image", "required": false }
+      ]
+    }
+  ],
+  "notes": "Schema is declared in src/content.config.ts with Zod. Keep this spec in sync when that file changes."
+}
