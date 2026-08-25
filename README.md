@@ -28,17 +28,20 @@ Installs into whichever coding agents the CLI finds on your machine. Add `-g` fo
 
 Both routes read the same `skills/` directories. The `skills` CLI discovers them through `.claude-plugin/marketplace.json`, so there is one copy of every skill and no duplicated tree to keep in sync.
 
-## The three skills
+## The four skills
 
-They form a loop. Each one hands off to the next, and each is useful on its own.
+The first three form a loop. Each one hands off to the next, and each is useful on its own.
 
 | Skill | Does | Produces |
 |-------|------|----------|
 | `detecting-cms` | Inspects dependencies, config files, content directories, and env var names | A report: CMS, content locations, transport, auth |
 | `writing-publish-specs` | Turns that report into a spec and validates it | `cms-publish.json` at the project root |
 | `publishing-content` | Maps a draft onto the spec, dry-runs, confirms, publishes | Published content, plus its URL or ID |
+| `humanize-text` | Scans a draft for AI writing tells and rewrites them out | Humanized text, plus a `HUMANIZE REPORT` of findings |
 
-You do not invoke them by name. Ask your agent "what CMS does this project use?" or "publish this draft" and the descriptions route the request.
+You do not invoke them by name. Ask your agent "what CMS does this project use?", "publish this draft", or "make this sound less like AI" and the descriptions route the request.
+
+`humanize-text` is independent of the spec — it edits prose and never touches `cms-publish.json`. Run it on a draft before publishing, or on any text at all.
 
 ### The spec
 
@@ -101,9 +104,12 @@ agentic-cms/
             │   ├── references/spec-format.md
             │   ├── scripts/validate-spec.mjs
             │   └── assets/publish.spec.example.json
-            └── publishing-content/
+            ├── publishing-content/
+            │   ├── SKILL.md
+            │   └── references/publish-transports.md
+            └── humanize-text/
                 ├── SKILL.md
-                └── references/publish-transports.md
+                └── references/ai-writing-signs.md
 ```
 
 The multi-plugin layout means a second plugin drops in beside `cms-publish` without moving any existing skill.
