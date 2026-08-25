@@ -34,6 +34,15 @@ export function bump(current, step) {
   throw new Error(`step must be major, minor, patch, or X.Y.Z — got "${step}"`);
 }
 
+/**
+ * The catalog version to write. A relative step moves the catalog by the same
+ * amount. An explicit X.Y.Z names the *plugin's* version, not the catalog's, so
+ * assigning it could move the catalog backwards — step it by patch instead.
+ */
+export function catalogTarget(catalogCurrent, step) {
+  return bump(catalogCurrent, SEMVER.test(step) ? 'patch' : step);
+}
+
 // plugin.json keeps its keywords array inline, so a JSON.stringify round-trip
 // would reflow it. Patch the one version field textually instead, and refuse to
 // guess if a future edit adds a second version key.
@@ -60,6 +69,19 @@ export function bumpVerdict({ changed, baseVersion, headVersion }) {
   return { ok: true, note: `${baseVersion} -> ${headVersion}` };
 }
 
+/**
+ * Decide whether the catalog version satisfies its own rule: it moves whenever
+ * any plugin changes, is added, or is removed. Pure, like bumpVerdict.
+ */
+export function catalogVerdict({ pluginsChanged, baseVersion, headVersion }) {
+  if (!pluginsChanged) return { ok: true, note: 'no plugin changes' };
+  if (baseVersion === null) return { ok: true, note: `new catalog at ${headVersion}` };
+  if (baseVersion === headVersion) {
+    return { ok: false, note: `plugins changed but catalog is still ${headVersion} — bump it` };
+  }
+  return { ok: true, note: `${baseVersion} -> ${headVersion}` };
+}
+
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
 
 /** CI guard: every plugin touched since <base-ref> must have a new version. */
@@ -68,10 +90,16 @@ function checkBumped(baseRef) {
     console.error('usage: node scripts/version.mjs --check-bumped <base-ref>');
     return 1;
   }
+  // merge-base is the real precondition: `git diff A...HEAD` needs it, and it
+  // fails both on an unknown ref and on a shallow clone that lacks the history.
+  // rev-parse alone passes on a shallow clone and lets the diff throw later.
   try {
-    execFileSync('git', ['rev-parse', '--verify', baseRef], { cwd: ROOT, stdio: 'ignore' });
+    execFileSync('git', ['merge-base', baseRef, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
   } catch {
-    console.error(`cannot resolve base ref "${baseRef}" — fetch it first (actions/checkout needs fetch-depth: 0)`);
+    console.error(
+      `cannot compare against "${baseRef}" — unknown ref, or the clone is too shallow to reach it.` +
+        `\nIn CI, actions/checkout needs fetch-depth: 0.`,
+    );
     return 1;
   }
 
@@ -79,10 +107,25 @@ function checkBumped(baseRef) {
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
 
+  // A plugin present at base but gone now is a removal — the catalog must move
+  // for that too, and the directory scan above cannot see it.
+  let baseNames = [];
+  try {
+    baseNames = JSON.parse(git('show', `${baseRef}:.claude-plugin/marketplace.json`)).plugins.map(
+      (entry) => entry.name,
+    );
+  } catch {
+    // No catalog at base — the whole marketplace is new in this branch.
+  }
+  const removed = baseNames.filter((n) => !names.includes(n));
+  let pluginsChanged = removed.length > 0;
+  if (removed.length) console.log(`ok   ${removed.join(', ')}: removed`);
+
   let failed = 0;
   for (const name of names) {
     const rel = `plugins/${name}`;
     const changed = git('diff', '--name-only', `${baseRef}...HEAD`, '--', rel).trim() !== '';
+    if (changed) pluginsChanged = true;
 
     let baseVersion = null;
     try {
@@ -99,9 +142,20 @@ function checkBumped(baseRef) {
     if (!ok) failed++;
   }
 
+  let baseCatalog = null;
+  try {
+    baseCatalog = JSON.parse(git('show', `${baseRef}:.claude-plugin/marketplace.json`)).version;
+  } catch {
+    // Absent at base, handled by catalogVerdict.
+  }
+  const headCatalog = JSON.parse(readFileSync(MARKETPLACE, 'utf8')).version;
+  const cat = catalogVerdict({ pluginsChanged, baseVersion: baseCatalog, headVersion: headCatalog });
+  console.log(`${cat.ok ? 'ok  ' : 'FAIL'} marketplace catalog: ${cat.note}`);
+  if (!cat.ok) failed++;
+
   if (failed) {
     console.error(
-      `\n${failed} plugin(s) changed without a version bump.` +
+      `\n${failed} version(s) not bumped.` +
         `\nRun: node scripts/version.mjs <plugin> <major|minor|patch>`,
     );
     return 1;
@@ -134,19 +188,24 @@ function main(argv) {
 
   // plugin.json is the source of truth: it wins at install time.
   const current = JSON.parse(manifestText).version;
-  let next, catalogNext;
+  // Build and validate BOTH output texts before touching the disk. Writing the
+  // catalog first and letting setPluginJsonVersion throw afterwards left the two
+  // files disagreeing — the exact drift this tool exists to prevent.
+  let next, catalogNext, catalogText, manifestNext;
   try {
     next = bump(current, step);
-    catalogNext = bump(catalog.version, step);
+    catalogNext = catalogTarget(catalog.version, step);
+    entry.version = next;
+    catalog.version = catalogNext;
+    catalogText = JSON.stringify(catalog, null, 2) + '\n';
+    manifestNext = setPluginJsonVersion(manifestText, next);
   } catch (err) {
     console.error(err.message);
     return 1;
   }
 
-  entry.version = next;
-  catalog.version = catalogNext;
-  writeFileSync(MARKETPLACE, JSON.stringify(catalog, null, 2) + '\n');
-  writeFileSync(manifestPath, setPluginJsonVersion(manifestText, next));
+  writeFileSync(MARKETPLACE, catalogText);
+  writeFileSync(manifestPath, manifestNext);
 
   // Read back rather than trusting the writes.
   const wroteManifest = JSON.parse(readFileSync(manifestPath, 'utf8')).version;
@@ -204,12 +263,22 @@ function selfTest() {
   check('changed with bump passes', verdict({ changed: true, baseVersion: '0.1.0', headVersion: '0.2.0' }), true);
   check('new plugin passes', verdict({ changed: true, baseVersion: null, headVersion: '0.1.0' }), true);
 
+  check('explicit target patches catalog', catalogTarget('1.4.0', '0.2.0'), '1.4.1');
+  check('explicit target never downgrades', catalogTarget('1.4.0', '0.2.0') > '1.4.0', true);
+  check('relative step passes through', catalogTarget('1.4.0', 'minor'), '1.5.0');
+
+  const cat = (o) => catalogVerdict(o).ok;
+  check('no plugin changes passes', cat({ pluginsChanged: false, baseVersion: '0.1.0', headVersion: '0.1.0' }), true);
+  check('plugins changed without catalog bump fails', cat({ pluginsChanged: true, baseVersion: '0.1.0', headVersion: '0.1.0' }), false);
+  check('plugins changed with catalog bump passes', cat({ pluginsChanged: true, baseVersion: '0.1.0', headVersion: '0.2.0' }), true);
+  check('new catalog passes', cat({ pluginsChanged: true, baseVersion: null, headVersion: '0.1.0' }), true);
+
   if (failures.length) {
     for (const f of failures) console.error(`FAIL ${f}`);
     console.error(`\n${failures.length} failing case(s)`);
     return 1;
   }
-  console.log('16 cases pass');
+  console.log('23 cases pass');
   return 0;
 }
 

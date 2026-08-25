@@ -159,7 +159,9 @@ Do not hand-edit the numbers. Both plugin versions are the string `"0.2.0"` in t
 node scripts/version.mjs cms-publish minor
 ```
 
-Takes `major`, `minor`, `patch`, or an explicit `X.Y.Z`. It reads the current version from `plugin.json` (the one that wins at install), writes both plugin fields, steps the catalog by the same amount, and reads the files back to confirm the write landed. Then add a `CHANGELOG.md` entry and validate.
+Takes `major`, `minor`, `patch`, or an explicit `X.Y.Z`. It reads the current version from `plugin.json` (the one that wins at install), writes both plugin fields, steps the catalog, and reads the files back to confirm the write landed. Then add a `CHANGELOG.md` entry and validate.
+
+A relative step moves the catalog by the same amount. An explicit `X.Y.Z` names the *plugin's* version, not the catalog's, so the catalog gets a patch bump instead — assigning it directly could move it backwards when the catalog is ahead. Both output files are built and validated in memory before either is written, so a failed bump leaves neither changed.
 
 Forgetting the bump is the common failure, so CI checks it — see [Continuous integration](#continuous-integration). To check before pushing:
 
@@ -167,7 +169,7 @@ Forgetting the bump is the common failure, so CI checks it — see [Continuous i
 node scripts/version.mjs --check-bumped origin/main
 ```
 
-Every plugin with changes since the base ref must carry a new version. Untouched plugins and brand-new ones pass.
+Every plugin with changes since the base ref must carry a new version, and the catalog version must move whenever any plugin changes, is added, or is removed. Untouched plugins and brand-new ones pass.
 
 The script carries its own tests:
 
@@ -175,7 +177,7 @@ The script carries its own tests:
 node scripts/version.mjs --self-test
 ```
 
-Sixteen cases — bump arithmetic in both directions, rejected junk input, and the two guards that keep `plugin.json` formatting intact.
+Twenty-three cases — bump arithmetic in both directions, rejected junk input, the catalog-target and catalog-verdict rules, and the two guards that keep `plugin.json` formatting intact.
 
 ### Releasing
 
@@ -193,7 +195,7 @@ Tags are for humans reading history. `/plugin marketplace add` and `npx skills i
 
 **`validate`** — `claude plugin validate . --strict`, then each script's own self-test. The validator catches malformed JSON, missing required fields, and version drift between a plugin entry and its `plugin.json`.
 
-**`version`** — pull requests only. Runs `--check-bumped` against the PR base, so a PR that edits a plugin without bumping its version fails.
+**`version`** — pull requests only. Runs `--check-bumped` against the PR base, so a PR that edits a plugin without bumping its version fails, as does one that changes a plugin without moving the catalog version.
 
 Everything runs through `npx`, so there is nothing to install and no secrets: `claude plugin validate` needs no credentials.
 
@@ -201,6 +203,7 @@ Two known gaps, both worth knowing before you trust a green check:
 
 - Neither `claude plugin validate --strict` nor `npx skills add ./ -l` fails on a `SKILL.md` with an empty or missing `name`. Skill frontmatter is not linted by anything here.
 - The version job checks that a number moved, not that it moved by the right amount. Choosing major over minor is still a judgment call.
+- `npx skills install` on line 14 is not a real subcommand — the CLI offers `add`, `use`, and `experimental_install`. Pre-dates this section; left alone deliberately.
 
 ## Validating the repository
 

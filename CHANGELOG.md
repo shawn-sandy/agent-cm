@@ -14,7 +14,19 @@ Plugin versions and the marketplace catalog version move together — see
 - CI workflow (`.github/workflows/ci.yml`): validates the marketplace and runs
   every script self-test on pull requests and pushes to `main`.
 - `scripts/version.mjs --check-bumped <base-ref>`: fails when a pull request
-  edits a plugin without bumping its version. Runs in CI and locally.
+  edits a plugin without bumping its version, or changes a plugin without
+  moving the catalog version. Runs in CI and locally.
+
+### Fixed
+
+- `version.mjs` no longer leaves the catalog and plugin versions disagreeing
+  when a bump fails partway. Both output files are now built and validated
+  before either is written.
+- An explicit `X.Y.Z` target no longer assigns itself to the catalog version,
+  which could move the catalog backwards. It patches the catalog instead.
+- `--check-bumped` now reports a clean, actionable message on a shallow clone
+  instead of throwing an uncaught error. It checks `git merge-base`, which
+  `git rev-parse` passed on shallow clones.
 
 ## [0.2.0] — 2026-08-25
 
