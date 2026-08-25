@@ -1,7 +1,7 @@
 {
   "name": "cms-publish",
-  "version": "0.1.0",
-  "description": "Detects the CMS a project publishes to, writes a machine-readable cms-publish.json spec describing its content types, fields, auth, and transport, then publishes content through that spec.",
+  "version": "0.2.0",
+  "description": "Detects the CMS a project publishes to, writes a machine-readable cms-publish.json spec describing its content types, fields, auth, and transport, then publishes content through that spec. Also humanizes AI-sounding drafts before they go out.",
   "author": {
     "name": "Shawn Sandy",
     "email": "shawnsandy04@gmail.com",
@@ -10,6 +10,6 @@
   "homepage": "https://github.com/shawn-sandy/agentic-cms/tree/main/plugins/cms-publish",
   "repository": "https://github.com/shawn-sandy/agentic-cms",
   "license": "MIT",
-  "keywords": ["cms", "content", "publishing", "headless-cms", "content-modeling"],
+  "keywords": ["cms", "content", "publishing", "headless-cms", "content-modeling", "writing", "editing"],
   "skills": ["./skills/"]
 }

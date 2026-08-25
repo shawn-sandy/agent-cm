@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # --check-bumped diffs against the PR base, which needs real history.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Manifest schema, required fields, version drift between plugin.json and
+      # its marketplace entry, and every SKILL.md in the tree.
+      - name: Validate marketplace
+        run: npx --yes @anthropic-ai/claude-code plugin validate . --strict
+
+      # Each script ships its own tests; run them before trusting either.
+      - name: Version script self-test
+        run: node scripts/version.mjs --self-test
+
+      - name: Spec validator self-test
+        run: node plugins/cms-publish/skills/writing-publish-specs/scripts/validate-spec.mjs --self-test
+
+  version:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Plugins changed in this PR must be bumped
+        run: node scripts/version.mjs --check-bumped "${{ github.event.pull_request.base.sha }}"

@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "agentic-cms",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Agent skills that detect a project's CMS, write a validated publishing spec for it, and publish content through it",
   "owner": {
     "name": "Shawn Sandy",
@@ -12,8 +12,8 @@
     {
       "name": "cms-publish",
       "source": "./plugins/cms-publish",
-      "version": "0.1.0",
-      "description": "Detects the CMS a project publishes to, writes a machine-readable cms-publish.json spec describing its content types, fields, auth, and transport, then publishes content through that spec. Works with file-based systems (Astro, Hugo, Eleventy, Jekyll), headless APIs (Sanity, Contentful, Payload, Strapi, Directus), and hosted CMSes (WordPress, Ghost).",
+      "version": "0.2.0",
+      "description": "Detects the CMS a project publishes to, writes a machine-readable cms-publish.json spec describing its content types, fields, auth, and transport, then publishes content through that spec. Works with file-based systems (Astro, Hugo, Eleventy, Jekyll), headless APIs (Sanity, Contentful, Payload, Strapi, Directus), and hosted CMSes (WordPress, Ghost). Also humanizes AI-sounding drafts before they go out.",
       "category": "development",
       "license": "MIT",
       "homepage": "https://github.com/shawn-sandy/agentic-cms/tree/main/plugins/cms-publish",
@@ -29,7 +29,9 @@
         "sanity",
         "contentful",
         "payload",
-        "ghost"
+        "ghost",
+        "writing",
+        "editing"
       ]
     }
   ]

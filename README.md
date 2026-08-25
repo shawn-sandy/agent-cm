@@ -28,17 +28,20 @@ Installs into whichever coding agents the CLI finds on your machine. Add `-g` fo
 
 Both routes read the same `skills/` directories. The `skills` CLI discovers them through `.claude-plugin/marketplace.json`, so there is one copy of every skill and no duplicated tree to keep in sync.
 
-## The three skills
+## The four skills
 
-They form a loop. Each one hands off to the next, and each is useful on its own.
+The first three form a loop. Each one hands off to the next, and each is useful on its own.
 
 | Skill | Does | Produces |
 |-------|------|----------|
 | `detecting-cms` | Inspects dependencies, config files, content directories, and env var names | A report: CMS, content locations, transport, auth |
 | `writing-publish-specs` | Turns that report into a spec and validates it | `cms-publish.json` at the project root |
 | `publishing-content` | Maps a draft onto the spec, dry-runs, confirms, publishes | Published content, plus its URL or ID |
+| `humanize-text` | Scans a draft for AI writing tells and rewrites them out | Humanized text, plus a `HUMANIZE REPORT` of findings |
 
-You do not invoke them by name. Ask your agent "what CMS does this project use?" or "publish this draft" and the descriptions route the request.
+You do not invoke them by name. Ask your agent "what CMS does this project use?", "publish this draft", or "make this sound less like AI" and the descriptions route the request.
+
+`humanize-text` is independent of the spec — it edits prose and never touches `cms-publish.json`. Run it on a draft before publishing, or on any text at all.
 
 ### The spec
 
@@ -86,8 +89,13 @@ Eleven cases — one spec that must pass and ten that must be rejected.
 
 ```
 agentic-cms/
+├── CHANGELOG.md
+├── .github/
+│   └── workflows/ci.yml          # validation + version guard
 ├── .claude-plugin/
 │   └── marketplace.json          # marketplace catalog
+├── scripts/
+│   └── version.mjs               # lockstep version bumps
 └── plugins/
     └── cms-publish/
         ├── .claude-plugin/
@@ -101,9 +109,12 @@ agentic-cms/
             │   ├── references/spec-format.md
             │   ├── scripts/validate-spec.mjs
             │   └── assets/publish.spec.example.json
-            └── publishing-content/
+            ├── publishing-content/
+            │   ├── SKILL.md
+            │   └── references/publish-transports.md
+            └── humanize-text/
                 ├── SKILL.md
-                └── references/publish-transports.md
+                └── references/ai-writing-signs.md
 ```
 
 The multi-plugin layout means a second plugin drops in beside `cms-publish` without moving any existing skill.
@@ -122,7 +133,78 @@ The multi-plugin layout means a second plugin drops in beside `cms-publish` with
 1. `mkdir -p plugins/<name>/{.claude-plugin,skills}`
 2. Write `plugins/<name>/.claude-plugin/plugin.json`.
 3. Add an entry to the `plugins` array in `.claude-plugin/marketplace.json` with `"source": "./plugins/<name>"`.
-4. Keep the `version` identical in both files — validation fails when they drift.
+4. Keep the `version` identical in both files — validation fails when they drift. Use `node scripts/version.mjs <name> <step>` for every later bump. See [Versioning](#versioning).
+
+## Versioning
+
+Three version numbers, two rules.
+
+| Number | Lives in | Moves when |
+|--------|----------|------------|
+| Plugin | `plugins/<name>/.claude-plugin/plugin.json` **and** its entry in `marketplace.json` | That plugin changes |
+| Catalog | top level of `.claude-plugin/marketplace.json` | Any plugin version changes, or a plugin is added or removed |
+| Skill | `metadata.version` in each `SKILL.md` | That skill changes — independent of the plugin |
+
+**Rule one:** the two plugin numbers must be identical. They are the same version recorded twice, and `claude plugin validate . --strict` fails when they drift. At install time `plugin.json` wins and the marketplace entry is silently ignored, so drift ships the wrong version quietly.
+
+**Rule two:** [semver](https://semver.org/spec/v2.0.0.html). Adding a skill is a **minor** bump. Rewriting what an existing skill does, renaming it, or removing it is **major** — installed agents route on skill descriptions, so changing one changes behavior for everyone who already has it. Fixing wording, references, or a script is **patch**.
+
+Skills version on their own because they install individually — `npx skills add ./ --skill humanize-text` takes one skill without the plugin around it.
+
+### Bumping
+
+Do not hand-edit the numbers. Both plugin versions are the string `"0.2.0"` in two different files, and one of them shares that string with the catalog version in the same file — a find-and-replace hits the wrong one.
+
+```bash
+node scripts/version.mjs cms-publish minor
+```
+
+Takes `major`, `minor`, `patch`, or an explicit `X.Y.Z`. It reads the current version from `plugin.json` (the one that wins at install), writes both plugin fields, steps the catalog, and reads the files back to confirm the write landed. Then add a `CHANGELOG.md` entry and validate.
+
+Versions only move forward: an explicit target that does not increase on the current version is rejected, and `--check-bumped` treats a downgrade as a failure rather than a bump. A deliberate rollback means editing both files by hand.
+
+A relative step moves the catalog by the same amount. An explicit `X.Y.Z` names the *plugin's* version, not the catalog's, so the catalog gets a patch bump instead — assigning it directly could move it backwards when the catalog is ahead. Both output files are built and validated in memory before either is written, so a failed bump leaves neither changed.
+
+Forgetting the bump is the common failure, so CI checks it — see [Continuous integration](#continuous-integration). To check before pushing:
+
+```bash
+node scripts/version.mjs --check-bumped origin/main
+```
+
+Every plugin with changes since the base ref must carry a new version, and the catalog version must move whenever any plugin changes, is added, or is removed. Untouched plugins and brand-new ones pass.
+
+The script carries its own tests:
+
+```bash
+node scripts/version.mjs --self-test
+```
+
+Twenty-nine cases — bump arithmetic in both directions, rejected junk input, the catalog-target and catalog-verdict rules, and the two guards that keep `plugin.json` formatting intact.
+
+### Releasing
+
+Bump, changelog, validate, commit, then tag:
+
+```bash
+git tag -a v0.2.0 -m "cms-publish 0.2.0" && git push --tags
+```
+
+Tags are for humans reading history. `/plugin marketplace add` and `npx skills add` both read the default branch, not tags, so a merge to `main` is what actually ships.
+
+## Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request and on pushes to `main`. Two jobs:
+
+**`validate`** — `claude plugin validate . --strict`, then each script's own self-test. The validator catches malformed JSON, missing required fields, and version drift between a plugin entry and its `plugin.json`.
+
+**`version`** — pull requests only. Runs `--check-bumped` against the PR base, so a PR that edits a plugin without bumping its version fails, as does one that changes a plugin without moving the catalog version.
+
+CI installs no project dependencies. The self-tests run directly through `node`, and `claude plugin validate` comes from `npx` and needs no credentials, so the workflow needs no secrets.
+
+Two known gaps, both worth knowing before you trust a green check:
+
+- Neither `claude plugin validate --strict` nor `npx skills add ./ -l` fails on a `SKILL.md` with an empty or missing `name`. Skill frontmatter is not linted by anything here.
+- The version job checks that a number moved, not that it moved by the right amount. Choosing major over minor is still a judgment call.
 
 ## Validating the repository
 
