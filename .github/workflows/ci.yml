@@ -31,7 +31,7 @@ jobs:
         run: node scripts/version.mjs --self-test
 
       - name: Spec validator self-test
-        run: node plugins/cms-publish/skills/writing-publish-specs/scripts/validate-spec.mjs --self-test
+        run: node plugins/cm-agent/skills/writing-publish-specs/scripts/validate-spec.mjs --self-test
 
   version:
     if: github.event_name == 'pull_request'

@@ -17,6 +17,17 @@ Plugin versions and the marketplace catalog version move together — see
   edits a plugin without bumping its version, or changes a plugin without
   moving the catalog version. Runs in CI and locally.
 
+### Changed
+
+- **Breaking:** the `cms-publish` plugin is now `cm-agent`, and the marketplace
+  is now `cm-agent` rather than `agentic-cms`. Both identifiers changed, so
+  reinstall with `/plugin marketplace add shawn-sandy/cm-agent` followed by
+  `/plugin install cm-agent@cm-agent`. The plugin directory moved to
+  `plugins/cm-agent/`. The `cms-publish.json` spec file is unchanged — it is a
+  consumer-project file, not part of the plugin name.
+- Repository URLs now point at `shawn-sandy/cm-agent`. The old
+  `shawn-sandy/agentic-cms` links only worked through a GitHub redirect.
+
 ### Fixed
 
 - `version.mjs` no longer leaves the catalog and plugin versions disagreeing
