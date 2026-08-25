@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+tone_instructions: >-
+  Report only defects that break loading, installing, or running this repository.
+  Do not comment on style, naming, formatting, wording, typos, structure, or
+  possible improvements. Do not suggest new dependencies or abstractions. If
+  nothing is broken, say so and post no comments. Every comment must name the
+  file, the concrete failure it causes, and the fix.
+
+reviews:
+  profile: quiet
+  request_changes_workflow: false
+  high_level_summary: false
+  changed_files_summary: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  suggested_labels: false
+  suggested_reviewers: false
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_instructions:
+    - path: "**/SKILL.md"
+      instructions: >-
+        Report only what stops the skill from loading or running. Missing `name`
+        or `description` in frontmatter, a `name` that does not match the parent
+        directory name or is not lowercase kebab-case, and any script, reference,
+        or asset path the body names that does not exist in the repository.
+        Report nothing else.
+
+    - path: "**/*.mjs"
+      instructions: >-
+        Report only runtime failures. Imports of third-party packages (this repo
+        has no package.json, so they will not resolve), exiting zero on a
+        validation failure, unguarded `JSON.parse` on file input, and writes to
+        paths the caller did not pass in. Report nothing else.
+
+    - path: "**/*.json"
+      instructions: >-
+        Report only what breaks plugin installation. Invalid JSON, a `source`
+        path in `.claude-plugin/marketplace.json` that does not exist, and a
+        version in `marketplace.json` that disagrees with the matching
+        `plugins/*/.claude-plugin/plugin.json`. Report nothing else.
