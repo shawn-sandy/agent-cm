@@ -34,6 +34,16 @@ export function bump(current, step) {
   throw new Error(`step must be major, minor, patch, or X.Y.Z — got "${step}"`);
 }
 
+/** Compare two semver strings: -1 if a < b, 0 if equal, 1 if a > b. */
+export function semverCmp(a, b) {
+  const pa = SEMVER.exec(a).slice(1).map(Number);
+  const pb = SEMVER.exec(b).slice(1).map(Number);
+  for (let i = 0; i < 3; i++) {
+    if (pa[i] !== pb[i]) return pa[i] < pb[i] ? -1 : 1;
+  }
+  return 0;
+}
+
 /**
  * The catalog version to write. A relative step moves the catalog by the same
  * amount. An explicit X.Y.Z names the *plugin's* version, not the catalog's, so
@@ -63,8 +73,10 @@ export function setPluginJsonVersion(text, next) {
 export function bumpVerdict({ changed, baseVersion, headVersion }) {
   if (!changed) return { ok: true, note: 'untouched' };
   if (baseVersion === null) return { ok: true, note: `new plugin at ${headVersion}` };
-  if (baseVersion === headVersion) {
-    return { ok: false, note: `changed but still ${headVersion} — bump it` };
+  const dir = semverCmp(headVersion, baseVersion);
+  if (dir === 0) return { ok: false, note: `changed but still ${headVersion} — bump it` };
+  if (dir < 0) {
+    return { ok: false, note: `went backwards ${baseVersion} -> ${headVersion} — versions must increase` };
   }
   return { ok: true, note: `${baseVersion} -> ${headVersion}` };
 }
@@ -76,8 +88,12 @@ export function bumpVerdict({ changed, baseVersion, headVersion }) {
 export function catalogVerdict({ pluginsChanged, baseVersion, headVersion }) {
   if (!pluginsChanged) return { ok: true, note: 'no plugin changes' };
   if (baseVersion === null) return { ok: true, note: `new catalog at ${headVersion}` };
-  if (baseVersion === headVersion) {
+  const dir = semverCmp(headVersion, baseVersion);
+  if (dir === 0) {
     return { ok: false, note: `plugins changed but catalog is still ${headVersion} — bump it` };
+  }
+  if (dir < 0) {
+    return { ok: false, note: `catalog went backwards ${baseVersion} -> ${headVersion} — versions must increase` };
   }
   return { ok: true, note: `${baseVersion} -> ${headVersion}` };
 }
@@ -194,6 +210,12 @@ function main(argv) {
   let next, catalogNext, catalogText, manifestNext;
   try {
     next = bump(current, step);
+    if (semverCmp(next, current) <= 0) {
+      throw new Error(
+        `target ${next} does not increase on ${current} — versions must move forward` +
+          `\n(edit plugin.json and the marketplace entry by hand for a deliberate rollback)`,
+      );
+    }
     catalogNext = catalogTarget(catalog.version, step);
     entry.version = next;
     catalog.version = catalogNext;
@@ -273,12 +295,19 @@ function selfTest() {
   check('plugins changed with catalog bump passes', cat({ pluginsChanged: true, baseVersion: '0.1.0', headVersion: '0.2.0' }), true);
   check('new catalog passes', cat({ pluginsChanged: true, baseVersion: null, headVersion: '0.1.0' }), true);
 
+  check('cmp less', semverCmp('0.1.0', '0.2.0'), -1);
+  check('cmp greater', semverCmp('1.0.0', '0.9.9'), 1);
+  check('cmp equal', semverCmp('1.2.3', '1.2.3'), 0);
+  check('cmp patch precision', semverCmp('1.2.10', '1.2.9'), 1);
+  check('plugin downgrade fails', verdict({ changed: true, baseVersion: '0.2.0', headVersion: '0.1.0' }), false);
+  check('catalog downgrade fails', cat({ pluginsChanged: true, baseVersion: '0.2.0', headVersion: '0.1.0' }), false);
+
   if (failures.length) {
     for (const f of failures) console.error(`FAIL ${f}`);
     console.error(`\n${failures.length} failing case(s)`);
     return 1;
   }
-  console.log('23 cases pass');
+  console.log('29 cases pass');
   return 0;
 }
 

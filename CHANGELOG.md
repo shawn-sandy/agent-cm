@@ -27,6 +27,9 @@ Plugin versions and the marketplace catalog version move together — see
 - `--check-bumped` now reports a clean, actionable message on a shallow clone
   instead of throwing an uncaught error. It checks `git merge-base`, which
   `git rev-parse` passed on shallow clones.
+- Versions must now increase. `--check-bumped` previously reported a downgrade
+  such as `0.2.0 -> 0.1.0` as a successful bump, and the bump command accepted
+  an explicit target below the current version.
 
 ## [0.2.0] — 2026-08-25
 
