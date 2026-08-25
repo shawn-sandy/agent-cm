@@ -18,7 +18,7 @@ so the same skills install through either toolchain.
 ### Universal (any agent)
 
 ```bash
-npx skills install shawn-sandy/agentic-cms
+npx skills install shawn-sandy/cm-agent
 ```
 
 Installs into whichever coding agents the CLI finds on your machine. Add `-g`
@@ -27,11 +27,11 @@ for user-level instead of project-level, and `--all` to skip the prompts.
 ### Claude Code plugin
 
 ```bash
-/plugin marketplace add shawn-sandy/agentic-cms
+/plugin marketplace add shawn-sandy/cm-agent
 ```
 
 ```bash
-/plugin install cms-publish@agentic-cms
+/plugin install cm-agent@cm-agent
 ```
 
 Both routes read the same `skills/` directories. The `skills` CLI discovers them
@@ -84,21 +84,21 @@ HTTP APIs, `sdk` for first-party clients, `cli` for command-line tools.
 
 `auth.envVars` holds variable **names**, never values — the file is committed.
 Full field reference:
-[spec-format.md](plugins/cms-publish/skills/writing-publish-specs/references/spec-format.md).
+[spec-format.md](plugins/cm-agent/skills/writing-publish-specs/references/spec-format.md).
 
 ### Validating a spec
 
 Zero dependencies, Node 18+:
 
 ```bash
-node plugins/cms-publish/skills/writing-publish-specs/scripts/validate-spec.mjs cms-publish.json
+node plugins/cm-agent/skills/writing-publish-specs/scripts/validate-spec.mjs cms-publish.json
 ```
 
 Exit 0 is valid. Exit 1 prints one line per problem, each naming the exact path
 (`contentTypes[0].fields[2].type`). The validator carries its own tests:
 
 ```bash
-node plugins/cms-publish/skills/writing-publish-specs/scripts/validate-spec.mjs --self-test
+node plugins/cm-agent/skills/writing-publish-specs/scripts/validate-spec.mjs --self-test
 ```
 
 Eleven cases — one spec that must pass and ten that must be rejected.
@@ -106,7 +106,7 @@ Eleven cases — one spec that must pass and ten that must be rejected.
 ## Repository layout
 
 ```
-agentic-cms/
+cm-agent/
 ├── CHANGELOG.md
 ├── .github/
 │   └── workflows/ci.yml          # validation + version guard
@@ -115,7 +115,7 @@ agentic-cms/
 ├── scripts/
 │   └── version.mjs               # lockstep version bumps
 └── plugins/
-    └── cms-publish/
+    └── cm-agent/
         ├── .claude-plugin/
         │   └── plugin.json       # plugin manifest
         └── skills/
@@ -135,12 +135,12 @@ agentic-cms/
                 └── references/ai-writing-signs.md
 ```
 
-The multi-plugin layout means a second plugin drops in beside `cms-publish`
+The multi-plugin layout means a second plugin drops in beside `cm-agent`
 without moving any existing skill.
 
 ## Adding a skill
 
-1. `mkdir -p plugins/cms-publish/skills/<name>` — the directory name must equal
+1. `mkdir -p plugins/cm-agent/skills/<name>` — the directory name must equal
    the `name` in frontmatter.
 2. Write `SKILL.md` with `name` and `description` frontmatter. Names are
    lowercase kebab-case, max 64 characters, and cannot contain `claude` or
@@ -196,7 +196,7 @@ two different files, and one of them shares that string with the catalog version
 in the same file — a find-and-replace hits the wrong one.
 
 ```bash
-node scripts/version.mjs cms-publish minor
+node scripts/version.mjs cm-agent minor
 ```
 
 Takes `major`, `minor`, `patch`, or an explicit `X.Y.Z`. It reads the current
@@ -241,7 +241,7 @@ catalog-target and catalog-verdict rules, and the two guards that keep
 Bump, changelog, validate, commit, then tag:
 
 ```bash
-git tag -a v0.2.0 -m "cms-publish 0.2.0" && git push --tags
+git tag -a v0.2.0 -m "cm-agent 0.2.0" && git push --tags
 ```
 
 Tags are for humans reading history. `/plugin marketplace add` and
